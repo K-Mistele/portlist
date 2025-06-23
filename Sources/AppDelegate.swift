@@ -1,18 +1,24 @@
 import Cocoa
 
 @main
+struct PortListApp {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        app.run()
+    }
+}
+
 class AppDelegate: NSObject, NSApplicationDelegate {
     
-    private var statusBarController: StatusBarController!
+    private var statusBarController: StatusBarController?
     
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Initialize the status bar controller
         statusBarController = StatusBarController()
         
         // Hide the app from the dock since it's a menu bar app
-        NSApp.setActivationPolicy(.accessory)
-        
-        // Prevent the app from terminating when all windows are closed
         NSApp.setActivationPolicy(.accessory)
     }
     

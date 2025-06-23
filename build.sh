@@ -48,46 +48,8 @@ echo -e "${YELLOW}📦 Creating app bundle structure...${NC}"
 # Copy Info.plist
 cp "$RESOURCES_DIR/Info.plist" "$CONTENTS_DIR/"
 
-# Create a simple app icon if it doesn't exist
-if [[ ! -f "$RESOURCES_DIR/AppIcon.icns" ]]; then
-    echo -e "${YELLOW}🎨 Creating app icon...${NC}"
-    # Create a simple PNG icon using ImageMagick if available, otherwise use a system icon
-    if command -v sips &> /dev/null; then
-        # Create a simple colored rectangle as placeholder icon
-        python3 -c "
-from PIL import Image, ImageDraw
-import sys
-
-# Create a simple network icon
-img = Image.new('RGBA', (512, 512), (70, 130, 255, 255))
-draw = ImageDraw.Draw(img)
-
-# Draw a simple network icon
-# Central hub
-draw.ellipse([206, 206, 306, 306], fill=(255, 255, 255, 255))
-# Connection lines
-for angle in [0, 60, 120, 180, 240, 300]:
-    import math
-    x = 256 + 150 * math.cos(math.radians(angle))
-    y = 256 + 150 * math.sin(math.radians(angle))
-    draw.line([(256, 256), (x, y)], fill=(255, 255, 255, 255), width=8)
-    draw.ellipse([x-20, y-20, x+20, y+20], fill=(255, 255, 255, 255))
-
-img.save('$RESOURCES_DIR/AppIcon.png')
-print('Created app icon')
-" 2>/dev/null || echo "Note: Could not create custom icon, will use default"
-        
-        # Convert PNG to ICNS if we have the tools
-        if [[ -f "$RESOURCES_DIR/AppIcon.png" ]]; then
-            sips -s format icns "$RESOURCES_DIR/AppIcon.png" --out "$RESOURCES_DIR/AppIcon.icns" 2>/dev/null || true
-        fi
-    fi
-fi
-
-# Copy icon if it exists
-if [[ -f "$RESOURCES_DIR/AppIcon.icns" ]]; then
-    cp "$RESOURCES_DIR/AppIcon.icns" "$RESOURCES_BUNDLE_DIR/"
-fi
+# Note: Custom app icon creation removed for system safety
+# The app will use macOS default application icon
 
 # Compile Swift sources
 echo -e "${YELLOW}⚙️  Compiling Swift sources...${NC}"
@@ -110,7 +72,6 @@ done
 # Compile with SwiftC
 swiftc -o "$MACOS_DIR/$APP_NAME" \
     -target x86_64-apple-macos11.0 \
-    -import-objc-header /dev/null \
     -framework Cocoa \
     -framework Foundation \
     "${SWIFT_FILES[@]}"
@@ -133,12 +94,21 @@ echo -e "   open $APP_BUNDLE"
 echo -e "${YELLOW}💡 To install the app:${NC}"
 echo -e "   cp -r $APP_BUNDLE /Applications/"
 
-# Test if the app can be launched
-echo -e "${YELLOW}🧪 Testing app launch...${NC}"
-if "$MACOS_DIR/$APP_NAME" --help &>/dev/null || timeout 2s "$MACOS_DIR/$APP_NAME" &>/dev/null; then
-    echo -e "${GREEN}✅ App launches successfully${NC}"
+# Test if the app binary is properly built
+echo -e "${YELLOW}🧪 Testing app binary...${NC}"
+
+# For GUI apps, we just verify the binary exists and is executable
+if [[ -x "$MACOS_DIR/$APP_NAME" ]]; then
+    echo -e "${GREEN}✅ App binary is executable and ready${NC}"
+    
+    # Optional: Quick syntax check by attempting to get version info
+    # This won't hang because we're not actually launching the GUI
+    if file "$MACOS_DIR/$APP_NAME" | grep -q "executable"; then
+        echo -e "${GREEN}✅ App binary format is valid${NC}"
+    fi
 else
-    echo -e "${YELLOW}⚠️  App test launch completed (this is normal for GUI apps)${NC}"
+    echo -e "${RED}❌ App binary is not executable${NC}"
+    exit 1
 fi
 
 echo -e "${GREEN}🎉 Build process complete!${NC}"

@@ -1,5 +1,6 @@
 import Foundation
 import Cocoa
+import Darwin
 
 protocol PortMonitorDelegate: AnyObject {
     func portMonitor(_ monitor: PortMonitor, didUpdatePorts ports: [PortInfo])
@@ -21,7 +22,7 @@ class PortMonitor {
         
         // Use lsof to get network connections
         let task = Process()
-        task.launchPath = "/usr/bin/lsof"
+        task.launchPath = "/usr/sbin/lsof"
         task.arguments = ["-i", "-P", "-n"]
         
         let pipe = Pipe()
@@ -56,7 +57,7 @@ class PortMonitor {
             let command = components[0]
             let pidString = components[1]
             let user = components[2]
-            let name = components.last ?? ""
+            let name = components[8] // The connection info is in the 9th field (index 8)
             
             guard let pid = Int(pidString) else { continue }
             
@@ -72,7 +73,10 @@ class PortMonitor {
                     command: processInfo.command,
                     memoryUsage: processInfo.memoryUsage,
                     cpuUsage: processInfo.cpuUsage,
-                    parentProcess: processInfo.parentProcess
+                    parentProcess: processInfo.parentProcess,
+                    executablePath: processInfo.executablePath,
+                    rawMemoryUsage: processInfo.rawMemoryUsage,
+                    fullCommandLine: processInfo.fullCommandLine
                 )
                 
                 // Avoid duplicates
@@ -96,53 +100,48 @@ class PortMonitor {
         return nil
     }
     
-    private func getProcessInfo(pid: Int) -> (command: String, memoryUsage: String, cpuUsage: String, parentProcess: String) {
-        let task = Process()
-        task.launchPath = "/bin/ps"
-        task.arguments = ["-p", "\(pid)", "-o", "pid,ppid,command,%cpu,%mem", "-h"]
+    private func getProcessInfo(pid: Int) -> (command: String, memoryUsage: String, cpuUsage: String, parentProcess: String, executablePath: String, rawMemoryUsage: String, fullCommandLine: String) {
         
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = Pipe()
+        // Get basic process info using NSRunningApplication
+        let runningApps = NSWorkspace.shared.runningApplications
+        let app = runningApps.first { $0.processIdentifier == pid }
         
-        do {
-            try task.run()
-            task.waitUntilExit()
-            
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8) ?? ""
-            
-            let line = output.trimmingCharacters(in: .whitespacesAndNewlines)
-            let components = line.components(separatedBy: .whitespaces)
-            
-            if components.count >= 5 {
-                let ppid = components[1]
-                let cpu = components[3]
-                let memory = components[4]
-                let command = components.dropFirst(5).joined(separator: " ")
-                
-                let parentProcess = getParentProcessName(ppid: ppid)
-                
-                return (
-                    command: command.isEmpty ? "Unknown" : command,
-                    memoryUsage: "\(memory)%",
-                    cpuUsage: "\(cpu)%",
-                    parentProcess: parentProcess
-                )
-            }
-        } catch {
-            print("Error getting process info for PID \(pid): \(error)")
-        }
+        // Get process name - use app name if available, otherwise extract from path
+        let processName = app?.localizedName ?? getProcessNameFromPID(pid: pid)
         
-        return (command: "Unknown", memoryUsage: "N/A", cpuUsage: "N/A", parentProcess: "Unknown")
+        // Get command line arguments using a simple ps call (just for args)
+        let commandLine = getCommandLineFromPID(pid: pid)
+        
+        // Get memory and CPU info using basic system calls
+        let memoryInfo = getMemoryInfoFromPID(pid: pid)
+        let cpuUsage = getCPUUsageFromPID(pid: pid)
+        
+        // Get parent process
+        let parentPID = self.getParentPIDFromPID(pid: pid)
+        let parentName = parentPID > 0 ? getProcessNameFromPID(pid: parentPID) : "Unknown"
+        
+        return (
+            command: processName,
+            memoryUsage: String(format: "%.1f%%", memoryInfo.percentage),
+            cpuUsage: String(format: "%.1f%%", cpuUsage),
+            parentProcess: parentName,
+            executablePath: processName,
+            rawMemoryUsage: formatMemorySize(rssKB: Int(memoryInfo.rssKB)),
+            fullCommandLine: commandLine.isEmpty ? processName : commandLine
+        )
     }
     
-    private func getParentProcessName(ppid: String) -> String {
-        guard let parentPid = Int(ppid), parentPid > 1 else { return "N/A" }
+    private func getProcessNameFromPID(pid: Int) -> String {
+        // Use a simple approach - get from running applications first
+        let runningApps = NSWorkspace.shared.runningApplications
+        if let app = runningApps.first(where: { $0.processIdentifier == pid }) {
+            return app.localizedName ?? "Unknown"
+        }
         
+        // Fallback to ps command for process name
         let task = Process()
         task.launchPath = "/bin/ps"
-        task.arguments = ["-p", ppid, "-o", "comm="]
+        task.arguments = ["-p", "\(pid)", "-o", "comm="]
         
         let pipe = Pipe()
         task.standardOutput = pipe
@@ -154,17 +153,119 @@ class PortMonitor {
             
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             let output = String(data: data, encoding: .utf8) ?? ""
-            let parentName = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            let name = output.trimmingCharacters(in: .whitespacesAndNewlines)
             
-            return parentName.isEmpty ? "Unknown" : parentName
+            return name.isEmpty ? "Unknown" : (name as NSString).lastPathComponent
         } catch {
             return "Unknown"
         }
     }
     
-    func terminateProcess(pid: Int, force: Bool) {
-        let signal = force ? "KILL" : "TERM"
+    private func getCommandLineFromPID(pid: Int) -> String {
+        // Use ps to get command line arguments - this is more reliable than sysctl parsing
+        let task = Process()
+        task.launchPath = "/bin/ps"
+        task.arguments = ["-p", "\(pid)", "-o", "args="]
         
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+        
+        do {
+            try task.run()
+            task.waitUntilExit()
+            
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8) ?? ""
+            let commandLine = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            return commandLine
+        } catch {
+            return ""
+        }
+    }
+    
+    private func getMemoryInfoFromPID(pid: Int) -> (rssKB: Int, percentage: Double) {
+        // Use ps to get memory info - more compatible than proc_pidinfo
+        let task = Process()
+        task.launchPath = "/bin/ps"
+        task.arguments = ["-p", "\(pid)", "-o", "rss=,%mem="]
+        
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+        
+        do {
+            try task.run()
+            task.waitUntilExit()
+            
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8) ?? ""
+            let line = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            let components = line.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+            if components.count >= 2 {
+                let rssKB = Int(components[0]) ?? 0
+                let percentage = Double(components[1]) ?? 0.0
+                return (rssKB: rssKB, percentage: percentage)
+            }
+        } catch {
+            print("Error getting memory info for PID \(pid): \(error)")
+        }
+        
+        return (rssKB: 0, percentage: 0.0)
+    }
+    
+    private func getCPUUsageFromPID(pid: Int) -> Double {
+        // Use ps to get CPU usage
+        let task = Process()
+        task.launchPath = "/bin/ps"
+        task.arguments = ["-p", "\(pid)", "-o", "%cpu="]
+        
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+        
+        do {
+            try task.run()
+            task.waitUntilExit()
+            
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8) ?? ""
+            let cpuString = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            return Double(cpuString) ?? 0.0
+        } catch {
+            return 0.0
+        }
+    }
+    
+
+    
+    private func formatMemorySize(rssKB: Int) -> String {
+        if rssKB == 0 {
+            return "N/A"
+        }
+        
+        let rssBytes = rssKB * 1024
+        
+        if rssBytes < 1024 * 1024 {
+            // Less than 1 MB, show in KB
+            return "\(rssKB) KB"
+        } else if rssBytes < 1024 * 1024 * 1024 {
+            // Less than 1 GB, show in MB
+            let mb = Double(rssBytes) / (1024.0 * 1024.0)
+            return String(format: "%.1f MB", mb)
+        } else {
+            // 1 GB or more, show in GB
+            let gb = Double(rssBytes) / (1024.0 * 1024.0 * 1024.0)
+            return String(format: "%.2f GB", gb)
+        }
+    }
+    
+
+    
+    func terminateProcess(pid: Int, force: Bool) {
         let task = Process()
         task.launchPath = "/bin/kill"
         task.arguments = force ? ["-9", "\(pid)"] : ["\(pid)"]
@@ -190,5 +291,60 @@ class PortMonitor {
     
     func cleanup() {
         // Any cleanup needed
+    }
+    
+    // MARK: - Public methods for parent process hierarchy
+    
+    func getParentPIDFromPID(pid: Int) -> Int {
+        // Use ps to get parent PID
+        let task = Process()
+        task.launchPath = "/bin/ps"
+        task.arguments = ["-p", "\(pid)", "-o", "ppid="]
+        
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+        
+        do {
+            try task.run()
+            task.waitUntilExit()
+            
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8) ?? ""
+            let ppidString = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            return Int(ppidString) ?? 0
+        } catch {
+            return 0
+        }
+    }
+    
+    func getDetailedProcessInfo(pid: Int) -> (processName: String, commandLine: String, memoryUsage: String, cpuUsage: String, parentProcess: String, rawMemoryUsage: String) {
+        // Get basic process info using NSRunningApplication
+        let runningApps = NSWorkspace.shared.runningApplications
+        let app = runningApps.first { $0.processIdentifier == pid }
+        
+        // Get process name - use app name if available, otherwise extract from path
+        let processName = app?.localizedName ?? getProcessNameFromPID(pid: pid)
+        
+        // Get command line arguments
+        let commandLine = getCommandLineFromPID(pid: pid)
+        
+        // Get memory and CPU info
+        let memoryInfo = getMemoryInfoFromPID(pid: pid)
+        let cpuUsage = getCPUUsageFromPID(pid: pid)
+        
+        // Get parent process
+        let parentPID = self.getParentPIDFromPID(pid: pid)
+        let parentName = parentPID > 0 ? getProcessNameFromPID(pid: parentPID) : "Unknown"
+        
+        return (
+            processName: processName,
+            commandLine: commandLine.isEmpty ? processName : commandLine,
+            memoryUsage: String(format: "%.1f%%", memoryInfo.percentage),
+            cpuUsage: String(format: "%.1f%%", cpuUsage),
+            parentProcess: parentName,
+            rawMemoryUsage: formatMemorySize(rssKB: Int(memoryInfo.rssKB))
+        )
     }
 }

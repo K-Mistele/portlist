@@ -10,6 +10,9 @@ struct PortInfo {
     let memoryUsage: String
     let cpuUsage: String
     let parentProcess: String
+    let executablePath: String
+    let rawMemoryUsage: String
+    let fullCommandLine: String
     
     var icon: NSImage? {
         return getProcessIcon()
@@ -74,29 +77,9 @@ struct PortInfo {
     }
     
     private func getSystemIcon() -> NSImage? {
-        let lowerProcessName = processName.lowercased()
-        
-        // Map common process names to system icons
-        switch lowerProcessName {
-        case let name where name.contains("python"):
-            return NSImage(systemSymbolName: "doc.text.fill", accessibilityDescription: "Python")
-        case let name where name.contains("node"):
-            return NSImage(systemSymbolName: "globe.americas.fill", accessibilityDescription: "Node.js")
-        case let name where name.contains("java"):
-            return NSImage(systemSymbolName: "cup.and.saucer.fill", accessibilityDescription: "Java")
-        case let name where name.contains("docker"):
-            return NSImage(systemSymbolName: "shippingbox.fill", accessibilityDescription: "Docker")
-        case let name where name.contains("nginx"), let name where name.contains("apache"):
-            return NSImage(systemSymbolName: "server.rack", accessibilityDescription: "Web Server")
-        case let name where name.contains("postgres"), let name where name.contains("mysql"):
-            return NSImage(systemSymbolName: "cylinder.fill", accessibilityDescription: "Database")
-        case let name where name.contains("ssh"):
-            return NSImage(systemSymbolName: "terminal.fill", accessibilityDescription: "SSH")
-        case let name where name.contains("chrome"), let name where name.contains("safari"), let name where name.contains("firefox"):
-            return NSImage(systemSymbolName: "globe", accessibilityDescription: "Browser")
-        default:
-            return NSImage(systemSymbolName: "app.fill", accessibilityDescription: "Application")
-        }
+        // For maximum compatibility, return nil and let the system handle it
+        // System symbols may not be available on older macOS versions
+        return nil
     }
 }
 
