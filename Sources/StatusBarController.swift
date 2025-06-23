@@ -38,10 +38,20 @@ class StatusBarController: NSObject {
         // Create status item in menu bar
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
-        // Set the icon (using a more reliable system symbol or text fallback)
+        // Set the icon (try custom icon first, fallback to emoji)
         if let statusButton = statusItem.button {
-            // For maximum compatibility, just use text - system symbols may not be available
-            statusButton.title = "⚡"
+            // Try to load custom menu bar template icon
+            if let iconPath = Bundle.main.path(forResource: "MenuBarIcon", ofType: "png"),
+               let customIcon = NSImage(contentsOfFile: iconPath) {
+                // Configure the icon for menu bar display
+                customIcon.size = NSSize(width: 18, height: 18)
+                customIcon.isTemplate = true  // Enable template mode for proper menu bar appearance
+                statusButton.image = customIcon
+                statusButton.imagePosition = .imageOnly
+            } else {
+                // Fallback to lightning emoji if custom icon not available
+                statusButton.title = "⚡"
+            }
             statusButton.toolTip = "PortList - Network Monitor"
         }
     }

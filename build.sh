@@ -48,8 +48,34 @@ echo -e "${YELLOW}📦 Creating app bundle structure...${NC}"
 # Copy Info.plist
 cp "$RESOURCES_DIR/Info.plist" "$CONTENTS_DIR/"
 
-# Note: Custom app icon creation removed for system safety
-# The app will use macOS default application icon
+# Process app icons from Assets.xcassets
+if [[ -d "$RESOURCES_DIR/Assets.xcassets/AppIcon.appiconset" ]]; then
+    echo -e "${YELLOW}📱 Processing app icons...${NC}"
+    
+    # Copy the main app icon (using the largest size for best quality)
+    if [[ -f "$RESOURCES_DIR/Assets.xcassets/AppIcon.appiconset/1024-mac.png" ]]; then
+        cp "$RESOURCES_DIR/Assets.xcassets/AppIcon.appiconset/1024-mac.png" "$RESOURCES_BUNDLE_DIR/AppIcon.png"
+        echo -e "${GREEN}✅ App icon copied (1024x1024)${NC}"
+    elif [[ -f "$RESOURCES_DIR/Assets.xcassets/AppIcon.appiconset/512-mac.png" ]]; then
+        cp "$RESOURCES_DIR/Assets.xcassets/AppIcon.appiconset/512-mac.png" "$RESOURCES_BUNDLE_DIR/AppIcon.png"
+        echo -e "${GREEN}✅ App icon copied (512x512)${NC}"
+    elif [[ -f "$RESOURCES_DIR/Assets.xcassets/AppIcon.appiconset/256-mac.png" ]]; then
+        cp "$RESOURCES_DIR/Assets.xcassets/AppIcon.appiconset/256-mac.png" "$RESOURCES_BUNDLE_DIR/AppIcon.png"
+        echo -e "${GREEN}✅ App icon copied (256x256)${NC}"
+    else
+        echo -e "${YELLOW}⚠️  No suitable app icon found in Assets.xcassets${NC}"
+    fi
+    
+    # Copy menu bar template icon
+    if [[ -f "$RESOURCES_DIR/network.png" ]]; then
+        cp "$RESOURCES_DIR/network.png" "$RESOURCES_BUNDLE_DIR/MenuBarIcon.png"
+        echo -e "${GREEN}✅ Menu bar template icon copied (network.png)${NC}"
+    else
+        echo -e "${YELLOW}⚠️  network.png not found - will use fallback icon${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠️  No Assets.xcassets found - using default app icon${NC}"
+fi
 
 # Compile Swift sources
 echo -e "${YELLOW}⚙️  Compiling Swift sources...${NC}"
