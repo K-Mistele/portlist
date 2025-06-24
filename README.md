@@ -1,157 +1,248 @@
 # PortList - macOS Port Monitor
 
-PortList is a macOS menu bar application that displays running network ports, the processes using them, and allows you to manage those processes directly from the menu bar.
+A professional macOS menu bar application that displays active network ports, their associated processes, and provides process management capabilities.
 
-## Features
+## 🎯 Features
 
-- **Menu Bar Integration**: Lives in your macOS menu bar for quick access
-- **Port Monitoring**: Shows all active network ports and listening services
-- **Process Information**: Displays process names, icons, and detailed information
-- **Process Management**: Kill or force-kill processes directly from the interface
-- **Detailed Tooltips**: Hover for additional process information (parent process, command line, memory, CPU usage)
-- **Pause/Resume**: Temporarily pause monitoring to reduce system load
-- **Clean UI**: Native macOS design with smooth animations
+- **Menu Bar Integration**: Lives in your macOS menu bar for instant access
+- **Real-time Port Monitoring**: Shows all active network ports and listening services
+- **Process Information**: Displays process names with detailed tooltips
+- **Process Management**: Terminate or force-kill processes directly from the interface
+- **Performance Control**: Pause/resume monitoring to manage system resources
+- **Native macOS Design**: Clean UI with smooth animations and system integration
 
-## Installation
+## 📦 Quick Install (End Users)
 
-### Option 1: Download Pre-built App (Recommended)
-1. Download the latest `PortList.app.zip` from the releases page
-2. Unzip the file
-3. Drag `PortList.app` to your `/Applications` folder
-4. Right-click the app and select "Open" (required for first launch due to macOS security)
-5. Grant necessary permissions when prompted
+### Option 1: Download Pre-built DMG
+1. Download `PortList-Installer.dmg` from releases
+2. Double-click to mount the DMG
+3. Drag `PortList.app` to the `Applications` folder
+4. Launch from Applications or Spotlight
+5. Grant network permissions when prompted
 
 ### Option 2: Build from Source
-1. Clone this repository
-2. Open Terminal and navigate to the project directory
-3. Run the build script: `./build.sh`
-4. The built app will be in the `build` directory
+Follow the [Development Setup](#-development-setup) section below.
 
-## Usage
+## 🛠 Development Setup
 
-1. **Launch**: Open PortList from Applications or Spotlight
-2. **Access**: Click the network icon in your menu bar
-3. **View Ports**: See all active ports with their associated processes
-4. **Get Details**: Hover over any port entry for detailed information
-5. **Manage Processes**: 
-   - Click the red stop button to terminate a process gracefully
-   - Click the crossbones button to force-kill a process
-6. **Control**: Use the pause button to temporarily stop monitoring, or exit to quit
-
-## Permissions
-
-PortList requires the following permissions:
-- **Network Access**: To scan for active ports
-- **Process Information**: To read process details and memory usage
-- **App Control**: To terminate processes (with user confirmation)
-
-## Building from Source
+Perfect for developers who want to build, modify, or distribute PortList.
 
 ### Prerequisites
-- macOS 11.0 or later
-- Xcode 13.0 or later
-- Command Line Tools for Xcode
 
-### Build Steps
+- **macOS 11.0+** (Big Sur or later)
+- **Xcode Command Line Tools**: Install with `xcode-select --install`
+- **Apple Developer Account** (for signing & distribution)
+
+### Quick Start
+
 ```bash
-# Clone the repository
-git clone <repository-url>
+# 1. Clone the repository
+git clone <your-repo-url>
 cd portlist
 
-# Make build script executable
-chmod +x build.sh
-
-# Build the application
+# 2. Build the application
 ./build.sh
 
-# The app will be created in build/PortList.app
+# 3. Test your build
+open build/PortList.app
 ```
 
-## Packaging for Distribution
+## 🔐 Code Signing & Distribution
 
-### Create a Distributable Package
+For distributing your app professionally without security warnings.
+
+### Step 1: Apple Developer Account Setup
+
+1. **Join Apple Developer Program**: Visit https://developer.apple.com/programs/ ($99/year)
+2. **Wait for approval** (usually same day for individual accounts)
+
+### Step 2: Certificate Setup
+
+Run the interactive certificate setup:
+
 ```bash
-# Create a compressed archive
-./package.sh
-
-# This creates PortList.app.zip ready for distribution
+./setup_signing.sh
 ```
 
-### Code Signing (for distribution)
-1. Obtain an Apple Developer Certificate
-2. Sign the application:
+This script will:
+- ✅ Guide you through creating a certificate request
+- ✅ Open Apple Developer Portal for you
+- ✅ Install your certificate automatically
+- ✅ Test code signing with your app
+
+### Step 3: Complete Distribution Pipeline
+
+Create a professionally signed and notarized DMG:
+
 ```bash
-codesign --force --sign "Developer ID Application: Your Name" --options runtime build/PortList.app
+./complete_dmg_distribution.sh
 ```
 
-### Notarization (for distribution outside App Store)
-1. Create an app-specific password in Apple ID settings
-2. Notarize the app:
-```bash
-xcrun altool --notarize-app --primary-bundle-id "com.yourname.portlist" --username "your@email.com" --password "app-specific-password" --file PortList.app.zip
-```
+This script handles **everything**:
+1. **Signs your app** with Developer ID
+2. **Creates DMG installer** with Applications folder
+3. **Signs the DMG** for distribution
+4. **Notarizes with Apple** (removes all security warnings)
+5. **Staples notarization ticket** for offline verification
+6. **Generates security checksum**
 
-## Uninstallation
+**Output**: `PortList-Installer.dmg` - Ready for professional distribution!
 
-1. Quit PortList (right-click menu bar icon → Exit)
-2. Delete `/Applications/PortList.app`
-3. Remove preferences (optional): `~/Library/Preferences/com.yourname.portlist.plist`
+## 📁 Project Structure
 
-## Troubleshooting
-
-### Common Issues
-
-**App won't open**: Right-click and select "Open" for first launch
-**No ports showing**: Check that you've granted network access permissions
-**Permission denied**: Run with administrator privileges if needed
-**High CPU usage**: Use the pause button to temporarily stop monitoring
-
-### Debug Mode
-Run from Terminal to see debug output:
-```bash
-/Applications/PortList.app/Contents/MacOS/PortList
-```
-
-## Development
-
-### Project Structure
 ```
 portlist/
-├── Sources/
-│   ├── AppDelegate.swift          # Main application delegate
+├── Sources/                        # Swift source code
+│   ├── AppDelegate.swift          # Main app entry point
 │   ├── StatusBarController.swift  # Menu bar management
 │   ├── PortMonitor.swift          # Port scanning logic
-│   ├── ProcessInfo.swift          # Process information gathering
-│   └── PortListView.swift         # UI components
-├── Resources/
+│   └── ProcessInfo.swift          # Process information
+├── Resources/                      # App resources
 │   ├── Info.plist                 # App configuration
-│   └── Assets/                    # Icons and images
-├── build.sh                       # Build script
-├── package.sh                     # Packaging script
+│   └── Assets.xcassets/           # Icons and images
+├── build.sh                       # Build the application
+├── setup_signing.sh               # Certificate setup helper
+├── complete_dmg_distribution.sh   # Full distribution pipeline
 └── README.md                      # This file
 ```
 
-### Contributing
+## 🚀 Distribution Workflow
+
+### For Development/Testing
+```bash
+./build.sh                    # Build app
+open build/PortList.app       # Test locally
+```
+
+### For Public Distribution
+```bash
+./build.sh                           # 1. Build the app
+./setup_signing.sh                   # 2. Setup certificates (first time only)
+./complete_dmg_distribution.sh       # 3. Create signed, notarized DMG
+```
+
+**Result**: Professional DMG with no security warnings on any macOS version.
+
+## 🔧 Advanced Configuration
+
+### Environment Variables
+
+```bash
+# Specify signing identity explicitly
+export CODE_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+
+# Use custom bundle ID
+export BUNDLE_ID="com.yourcompany.portlist"
+```
+
+### Manual Signing (Advanced)
+
+```bash
+# Sign app manually
+codesign --force --sign "Developer ID Application: Your Name" build/PortList.app/
+
+# Verify signature
+codesign -dv build/PortList.app/
+
+# Check signature details
+spctl -a -t exec -vv build/PortList.app/
+```
+
+## 🐛 Troubleshooting
+
+### Build Issues
+
+**"Swift compiler not found"**
+```bash
+xcode-select --install
+```
+
+**"Permission denied"**
+```bash
+chmod +x build.sh setup_signing.sh complete_dmg_distribution.sh
+```
+
+### Code Signing Issues
+
+**"No signing identity found"**
+- Run `./setup_signing.sh` to setup certificates
+- Verify Apple Developer account is active
+
+**"Certificate doesn't match private key"**
+- Use Keychain Access to create certificate request
+- Download certificate directly from Apple Developer Portal
+
+### Notarization Issues
+
+**"Invalid credentials"**
+- Use app-specific password from https://appleid.apple.com/
+- Not your regular Apple ID password
+
+**"Notarization failed"**
+```bash
+# Check notarization log
+xcrun notarytool log <submission-id> --keychain-profile portlist-notary
+```
+
+### Runtime Issues
+
+**App won't open**
+- Right-click → "Open" for first launch
+- Check Console.app for error messages
+
+**No ports showing**
+- Grant network access permissions
+- Run from Terminal to see debug output:
+```bash
+./build/PortList.app/Contents/MacOS/PortList
+```
+
+## 📋 Version Control Best Practices
+
+### What's Ignored (via .gitignore)
+- ✅ Build artifacts (`build/`, `*.dmg`, `*.zip`)
+- ✅ Certificates and private keys (`certificates/`, `*.p12`)
+- ✅ System files (`.DS_Store`, etc.)
+- ✅ Temporary files (`dmg_temp/`, `*.log`)
+
+### What Should Be Committed
+- ✅ Source code (`Sources/`)
+- ✅ Resources (`Resources/`)
+- ✅ Build scripts (`*.sh`)
+- ✅ Documentation (`README.md`, `LICENSE`)
+
+## 🔒 Security Notes
+
+### Certificate Management
+- **Never commit** private keys (`.key` files) to version control
+- **Store certificates securely** in your keychain
+- **Use app-specific passwords** for notarization, not your Apple ID password
+
+### Distribution Security
+- **Always sign apps** before distribution
+- **Use notarization** for public distribution
+- **Provide checksums** (SHA256) with releases
+
+## 🤝 Contributing
+
 1. Fork the repository
-2. Create a feature branch
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
 3. Make your changes
-4. Test thoroughly on multiple macOS versions
-5. Submit a pull request
+4. Test thoroughly: `./build.sh && open build/PortList.app`
+5. Commit: `git commit -m 'Add amazing feature'`
+6. Push: `git push origin feature/amazing-feature`
+7. Create a Pull Request
 
-## License
+## 📄 License
 
-See LICENSE file for details.
+See [LICENSE](LICENSE) file for details.
 
-## Next Steps to Consider
+## 🆘 Support
 
-After installing and using PortList, you might want to consider:
+- **Issues**: Open a GitHub issue for bugs or feature requests
+- **Discussions**: Use GitHub Discussions for questions
+- **Documentation**: Check this README for comprehensive guides
 
-1. **Security Review**: Review which processes have network access
-2. **Performance Optimization**: Use the pause feature for resource-intensive monitoring
-3. **Automation**: Consider automating the monitoring of specific ports or processes
-4. **Integration**: Explore integrating with other development tools or monitoring systems
-5. **Customization**: Request features like custom port filters or notification settings
+---
 
-## Support
-
-For issues, feature requests, or questions, please open an issue on the GitHub repository.
+**Ready to build professional macOS apps?** Start with `./build.sh` and work your way up to `./complete_dmg_distribution.sh` for production-ready distribution! 🚀

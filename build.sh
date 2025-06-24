@@ -78,7 +78,7 @@ else
 fi
 
 # Compile Swift sources
-echo -e "${YELLOW}⚙️  Compiling Swift sources...${NC}"
+echo -e "${YELLOW}⚙️  Compiling Swift sources for Universal Binary...${NC}"
 
 SWIFT_FILES=(
     "$SOURCES_DIR/AppDelegate.swift"
@@ -95,17 +95,54 @@ for file in "${SWIFT_FILES[@]}"; do
     fi
 done
 
-# Compile with SwiftC
-swiftc -o "$MACOS_DIR/$APP_NAME" \
+# Create temporary directory for individual architecture binaries
+TEMP_DIR="$BUILD_DIR/temp_architectures"
+mkdir -p "$TEMP_DIR"
+
+echo -e "${YELLOW}🔧 Compiling for x86_64 (Intel)...${NC}"
+# Compile for Intel (x86_64)
+swiftc -o "$TEMP_DIR/${APP_NAME}_x86_64" \
     -target x86_64-apple-macos11.0 \
     -framework Cocoa \
     -framework Foundation \
     "${SWIFT_FILES[@]}"
 
 if [[ $? -ne 0 ]]; then
-    echo -e "${RED}❌ Compilation failed${NC}"
+    echo -e "${RED}❌ x86_64 compilation failed${NC}"
     exit 1
 fi
+
+echo -e "${YELLOW}🔧 Compiling for arm64 (Apple Silicon)...${NC}"
+# Compile for Apple Silicon (arm64)
+swiftc -o "$TEMP_DIR/${APP_NAME}_arm64" \
+    -target arm64-apple-macos11.0 \
+    -framework Cocoa \
+    -framework Foundation \
+    "${SWIFT_FILES[@]}"
+
+if [[ $? -ne 0 ]]; then
+    echo -e "${RED}❌ arm64 compilation failed${NC}"
+    exit 1
+fi
+
+echo -e "${YELLOW}🔧 Creating universal binary with lipo...${NC}"
+# Combine both architectures into a universal binary
+lipo -create "$TEMP_DIR/${APP_NAME}_x86_64" "$TEMP_DIR/${APP_NAME}_arm64" \
+     -output "$MACOS_DIR/$APP_NAME"
+
+if [[ $? -ne 0 ]]; then
+    echo -e "${RED}❌ Universal binary creation failed${NC}"
+    exit 1
+fi
+
+# Clean up temporary files
+rm -rf "$TEMP_DIR"
+
+echo -e "${GREEN}✅ Universal binary created successfully!${NC}"
+
+# Verify the universal binary
+echo -e "${YELLOW}🔍 Verifying universal binary architectures...${NC}"
+lipo -info "$MACOS_DIR/$APP_NAME"
 
 # Make the executable... executable
 chmod +x "$MACOS_DIR/$APP_NAME"
